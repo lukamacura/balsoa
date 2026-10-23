@@ -15,9 +15,14 @@ import {
 } from "./motion";
 
 export type PlanPin = { id: string; coords: LonLat };
+export type RGB = [r: number, g: number, b: number];
 export type Insets = { top: number; right: number; bottom: number; left: number };
 export type PlanFrame = {
   dt: number;
+  /** Canvas size in CSS pixels, and the clear area inside it the camera frames. */
+  width: number;
+  height: number;
+  inset: Insets;
   /** Active pin in canvas CSS pixels. */
   active: Point | null;
   scaleKm: number;
@@ -43,6 +48,8 @@ const UNITS_PER_DEG = MAP.width / (MAP.lon1 - MAP.lon0);
 const DOT_SPACING = 0.7 * UNITS_PER_DEG; // must match the grid in /map/plan-dots.json
 const ARC_SAMPLES = 40;
 const NICE_KM = [50, 100, 200, 250, 500, 1000, 2000, 2500, 5000];
+const HEAT_BANDS = 8;
+const HALO_R2 = 46 ** 2;
 
 const easeOutBack = (t: number) => 1 + 2.2 * (t - 1) ** 3 + 1.2 * (t - 1) ** 2;
 
@@ -63,6 +70,9 @@ function arcControl(a: Point, b: Point) {
 
 const quad = (a: number, c: number, b: number, t: number) => (1 - t) * (1 - t) * a + 2 * (1 - t) * t * c + t * t * b;
 
+const paint = (c: RGB, alpha: number) =>
+  `rgba(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])},${alpha.toFixed(3)})`;
+
 export function createPlanMap(
   canvas: HTMLCanvasElement,
   options: {
@@ -82,7 +92,6 @@ export function createPlanMap(
   let mx = new Float32Array(0);
   let my = new Float32Array(0);
   let warmth = new Float32Array(0);
-  let heat = new Float32Array(0);
   let cancelled = false;
   loadDots("/map/plan-dots.json").then((raw) => {
     if (cancelled) return;
@@ -90,7 +99,6 @@ export function createPlanMap(
     mx = new Float32Array(count);
     my = new Float32Array(count);
     warmth = new Float32Array(count);
-    heat = new Float32Array(count);
     for (let i = 0; i < count; i++) {
       const p = project([raw[i * 2] / 10, raw[i * 2 + 1] / 10]);
       mx[i] = p.x;
@@ -110,6 +118,11 @@ export function createPlanMap(
   const camY = spring(hq.y);
   const camK = spring(0);
   let primed = false;
+
+  // Category colour; it glides to the new one when the tab changes.
+  const tone: RGB = [245, 161, 66];
+  const glint: RGB = [255, 210, 154];
+  let toneTarget: RGB = [...tone];
 
   function setPins(pins: PlanPin[]) {
     const ids = new Set(pins.map((pin) => pin.id));
@@ -137,6 +150,11 @@ export function createPlanMap(
 
   function setActive(id: string | null) {
     activeId = id;
+  }
+
+  function setTone(rgb: RGB) {
+    toneTarget = rgb;
+    if (!primed) tone.splice(0, 3, ...rgb);
   }
 
   // ---- Framing
@@ -233,7 +251,8 @@ export function createPlanMap(
       }
     }
 
-    target = frameTarget(width, height, options.insets());
+    const inset = options.insets();
+    target = frameTarget(width, height, inset);
     const flyDistance = Math.hypot(camX.value - target.cx, camY.value - target.cy) * Math.exp(camK.value);
     const zoomTarget = Math.max(Math.log(target.kMin), Math.log(target.k) - 0.6 * smoothstep(0, width * 0.8, flyDistance));
     if (!primed || reduced) {
@@ -246,6 +265,11 @@ export function createPlanMap(
       stepSpring(camX, target.cx, dt, 1);
       stepSpring(camY, target.cy, dt, 1);
       stepSpring(camK, zoomTarget, dt, 1);
+    }
+
+    for (let c = 0; c < 3; c++) {
+      tone[c] = reduced ? toneTarget[c] : damp(tone[c], toneTarget[c], 5, dt);
+      glint[c] = tone[c] + (255 - tone[c]) * 0.5;
     }
 
     const k = Math.exp(camK.value);
@@ -272,17 +296,18 @@ export function createPlanMap(
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
 
-    // ---- Dots, with warmth around Vienna, a ripple after each change, and a glow on the active pin.
+    // ---- Dots, with warmth around Vienna, a halo round each pin, a ripple after each change,
+    // and a glow on the active pin.
     const count = mx.length;
     if (count) {
       const r = Math.min(0.5 + DOT_SPACING * k * 0.13, 2.6);
       // Tiny dots read the same as squares and are far cheaper to fill.
       const dot =
         r < 1.3
-          ? (x: number, y: number) => ctx.rect(x - r, y - r, r * 2, r * 2)
-          : (x: number, y: number) => {
-              ctx.moveTo(x + r, y);
-              ctx.arc(x, y, r, 0, TAU);
+          ? (path: Path2D, x: number, y: number) => path.rect(x - r, y - r, r * 2, r * 2)
+          : (path: Path2D, x: number, y: number) => {
+              path.moveTo(x + r, y);
+              path.arc(x, y, r, 0, TAU);
             };
       const rippleAge = time - rippleAt;
       const rippleOn = !reduced && rippleAge > 0 && rippleAge < 1.8;
@@ -290,14 +315,20 @@ export function createPlanMap(
       const activeX = active ? toX(active.point.x) : 0;
       const activeY = active ? toY(active.point.y) : 0;
       const activeGlow = active ? active.lift : 0;
+      const halos: { x: number; y: number; strength: number }[] = [];
+      for (const e of entities.values()) {
+        if (e.landedAt < 0) continue;
+        const strength = e.fade * clamp((time - e.landedAt) / 0.8) * (0.26 + 0.34 * e.focus);
+        if (strength > 0.01) halos.push({ x: toX(e.point.x), y: toY(e.point.y), strength });
+      }
 
-      ctx.beginPath();
+      const base = new Path2D();
+      const hot = Array.from({ length: HEAT_BANDS }, () => new Path2D());
       for (let i = 0; i < count; i++) {
         const x = mx[i] * k + ox;
         const y = my[i] * k + oy;
-        heat[i] = -1;
         if (x < -4 || y < -4 || x > width + 4 || y > height + 4) continue;
-        dot(x, y);
+        dot(base, x, y);
         let h = warmth[i];
         if (rippleOn) {
           const d = Math.hypot(x - hqX, y - hqY) - ring;
@@ -307,22 +338,19 @@ export function createPlanMap(
           const d2 = (x - activeX) ** 2 + (y - activeY) ** 2;
           h = Math.max(h, Math.exp(-d2 / 2200) * 0.9 * activeGlow);
         }
-        heat[i] = h;
-      }
-      ctx.fillStyle = "rgba(138,150,163,0.3)";
-      ctx.fill();
-
-      for (let b = 0; b < 4; b++) {
-        const lo = 0.06 + b * 0.24;
-        const hi = lo + 0.24;
-        ctx.beginPath();
-        for (let i = 0; i < count; i++) {
-          if (heat[i] < lo || heat[i] >= hi) continue;
-          dot(mx[i] * k + ox, my[i] * k + oy);
+        for (const halo of halos) {
+          const d2 = (x - halo.x) ** 2 + (y - halo.y) ** 2;
+          if (d2 < HALO_R2 * 4) h = Math.max(h, Math.exp(-d2 / HALO_R2) * halo.strength);
         }
-        ctx.fillStyle = `rgba(245,161,66,${0.22 + b * 0.24})`;
-        ctx.fill();
+        const band = (h - 0.06) / 0.94;
+        if (band > 0) dot(hot[Math.min(HEAT_BANDS - 1, Math.floor(band * HEAT_BANDS))], x, y);
       }
+      ctx.fillStyle = "rgba(124,150,184,0.34)";
+      ctx.fill(base);
+      hot.forEach((path, b) => {
+        ctx.fillStyle = paint(tone, 0.22 + (0.72 * b) / (HEAT_BANDS - 1));
+        ctx.fill(path);
+      });
     }
 
     // ---- Arcs and comets
@@ -347,18 +375,18 @@ export function createPlanMap(
         if (t >= end) break;
       }
       if (e.lift > 0.01) {
-        ctx.strokeStyle = `rgba(245,161,66,${0.18 * e.lift})`;
+        ctx.strokeStyle = paint(tone, 0.18 * e.lift);
         ctx.lineWidth = 6;
         ctx.stroke();
       }
-      ctx.strokeStyle = `rgba(245,161,66,${0.6 * alpha + 0.4 * e.lift})`;
+      ctx.strokeStyle = paint(tone, 0.6 * alpha + 0.4 * e.lift);
       ctx.lineWidth = 1 + e.lift;
       ctx.stroke();
 
       if (appear < 1) {
         ctx.beginPath();
         ctx.arc(quad(ax, cx, bx, end), quad(ay, cy, by, end), 2.4, 0, TAU);
-        ctx.fillStyle = `rgba(255,210,154,${e.fade})`;
+        ctx.fillStyle = paint(glint, e.fade);
         ctx.fill();
       } else if (!reduced && !e.leaving) {
         const head = (((time - e.landedAt) / (2.4 + (e.index % 4) * 0.45)) % 1) * 1.15;
@@ -369,7 +397,7 @@ export function createPlanMap(
           ctx.beginPath();
           ctx.moveTo(quad(ax, cx, bx, t0), quad(ay, cy, by, t0));
           ctx.lineTo(quad(ax, cx, bx, t1), quad(ay, cy, by, t1));
-          ctx.strokeStyle = `rgba(255,210,154,${(1 - s / 10) * 0.95 * (0.35 + 0.65 * e.focus)})`;
+          ctx.strokeStyle = paint(glint, (1 - s / 10) * 0.95 * (0.35 + 0.65 * e.focus));
           ctx.lineWidth = 2.2 - s * 0.16;
           ctx.stroke();
         }
@@ -392,18 +420,18 @@ export function createPlanMap(
         const ripple = hit < 1 ? hit : phase;
         ctx.beginPath();
         ctx.arc(x, y, r0 + (hit < 1 ? 22 : 13) * easeOutCubic(ripple), 0, TAU);
-        ctx.strokeStyle = `rgba(245,161,66,${(hit < 1 ? 0.9 : 0.55) * (1 - ripple)})`;
+        ctx.strokeStyle = paint(tone, (hit < 1 ? 0.9 : 0.55) * (1 - ripple));
         ctx.lineWidth = 1;
         ctx.stroke();
       }
       ctx.beginPath();
       ctx.arc(x, y, r0, 0, TAU);
-      ctx.fillStyle = "#f5a142";
+      ctx.fillStyle = paint(tone, 1);
       ctx.fill();
       if (e.lift > 0.01) {
         ctx.beginPath();
         ctx.arc(x, y, 6 + 4 * e.lift, 0, TAU);
-        ctx.strokeStyle = `rgba(255,210,154,${e.lift})`;
+        ctx.strokeStyle = paint(glint, e.lift);
         ctx.stroke();
       }
       ctx.globalAlpha = 1;
@@ -435,6 +463,9 @@ export function createPlanMap(
 
     options.onFrame({
       dt,
+      width,
+      height,
+      inset,
       active: active && active.landedAt >= 0 ? { x: toX(active.point.x), y: toY(active.point.y) } : null,
       scaleKm,
       scalePx,
@@ -446,6 +477,7 @@ export function createPlanMap(
   return {
     setPins,
     setActive,
+    setTone,
     destroy() {
       cancelled = true;
       stop();

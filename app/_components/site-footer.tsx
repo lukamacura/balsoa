@@ -1,5 +1,10 @@
 import { contact, hero, nav } from "@/lib/content";
-import { Logo } from "./ui";
+import { Logo, LogoMark } from "./ui";
+
+const credit = {
+  name: "Luka Macura",
+  url: "https://www.linkedin.com/in/luka-macura-92a172295/",
+};
 
 export function SiteFooter() {
   return (
@@ -7,7 +12,10 @@ export function SiteFooter() {
       <div className="shell pt-20">
         <div className="grid gap-12 border-b border-white/10 pb-16 sm:grid-cols-2 lg:grid-cols-12">
           <div className="lg:col-span-6">
-            <Logo />
+            <div className="flex items-start gap-4">
+              <LogoMark className="h-14" />
+              <Logo className="mt-3.5 h-6" />
+            </div>
             <p className="mt-6 max-w-sm text-white/55">{hero.lines.join(" ").replace(/\.$/, "")}</p>
           </div>
           <nav aria-label="Footer" className="lg:col-span-3">
@@ -42,7 +50,17 @@ export function SiteFooter() {
 
         <div className="flex flex-col gap-2 py-8 text-sm text-white/40 sm:flex-row sm:justify-between">
           <p>© Copyright Balsoa Consulting. All rights reserved.</p>
-          <p>Designed by Macura Design.</p>
+          <p>
+            Designed &amp; Developed by{" "}
+            <a
+              href={credit.url}
+              target="_blank"
+              rel="noopener"
+              className="text-white/70 underline decoration-white/25 underline-offset-4 transition-colors hover:text-flare hover:decoration-flare"
+            >
+              {credit.name}
+            </a>
+          </p>
         </div>
       </div>
 

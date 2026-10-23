@@ -45,7 +45,7 @@ export function ContactForm() {
         <p className="text-sm text-ink/50">Opens your email app with the message ready to send.</p>
         <button
           type="submit"
-          className="group inline-flex h-13 items-center justify-center gap-3 rounded-full bg-ink pl-7 pr-6 text-sm font-medium text-white transition-colors hover:bg-flare-deep"
+          className="press group inline-flex h-13 items-center justify-center gap-3 rounded-full bg-ink pl-7 pr-6 text-sm font-medium text-white hover:bg-flare-deep"
         >
           Send message
           <ArrowIcon className="h-4 w-4 transition-transform duration-500 ease-out-expo group-hover:translate-x-1" />

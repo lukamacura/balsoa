@@ -17,8 +17,36 @@ function useScrolledPast(offset: number) {
   );
 }
 
+const SECTION_IDS = nav.map((item) => item.href.slice(1));
+
+/** The nav section crossing the middle of the screen, if any. */
+function useCurrentSection() {
+  const [current, setCurrent] = useState<string | null>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const id = entry.target.id;
+          if (entry.isIntersecting) setCurrent(id);
+          else setCurrent((value) => (value === id ? null : value));
+        }
+      },
+      { rootMargin: "-50% 0px -49% 0px" },
+    );
+    for (const id of SECTION_IDS) {
+      const section = document.getElementById(id);
+      if (section) observer.observe(section);
+    }
+    return () => observer.disconnect();
+  }, []);
+
+  return current;
+}
+
 export function SiteHeader() {
   const scrolled = useScrolledPast(24);
+  const current = useCurrentSection();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -41,28 +69,34 @@ export function SiteHeader() {
     >
       <div className="shell flex h-18 items-center justify-between">
         <a href="#top" aria-label="Balsoa Consulting home" onClick={() => setOpen(false)}>
-          <Logo />
+          <Logo loading="eager" className="h-5 sm:h-6" />
         </a>
 
         <nav aria-label="Primary" className="hidden lg:block">
           <ul className="flex items-center gap-1">
-            {nav.filter((item) => item.href !== "#contact").map((item) => (
-              <li key={item.href}>
-                <a
-                  href={item.href}
-                  className="relative px-4 py-2 text-sm text-white/70 transition-colors after:absolute after:inset-x-4 after:bottom-1 after:h-px after:origin-left after:scale-x-0 after:bg-flare after:transition-transform after:duration-500 after:ease-out-expo hover:text-white hover:after:scale-x-100"
-                >
-                  {item.label}
-                </a>
-              </li>
-            ))}
+            {nav.filter((item) => item.href !== "#contact").map((item) => {
+              const here = current === item.href.slice(1);
+              return (
+                <li key={item.href}>
+                  <a
+                    href={item.href}
+                    aria-current={here || undefined}
+                    className={`relative px-4 py-2 text-sm transition-colors duration-300 after:absolute after:inset-x-4 after:bottom-1 after:h-px after:origin-left after:bg-flare after:transition-transform after:duration-500 after:ease-out-expo hover:text-white hover:after:scale-x-100 ${
+                      here ? "text-white after:scale-x-100" : "text-white/70 after:scale-x-0"
+                    }`}
+                  >
+                    {item.label}
+                  </a>
+                </li>
+              );
+            })}
           </ul>
         </nav>
 
         <div className="flex items-center gap-3">
           <a
             href="#contact"
-            className="group hidden h-10 items-center gap-2 rounded-full border border-white/15 pl-5 pr-4 text-sm font-medium transition-colors hover:border-flare hover:bg-flare hover:text-ink lg:inline-flex"
+            className="press group hidden h-10 items-center gap-2 rounded-full border border-white/15 pl-5 pr-4 text-sm font-medium hover:border-flare hover:bg-flare hover:text-ink lg:inline-flex"
           >
             Contact
             <ArrowIcon className="h-3.5 w-3.5 transition-transform duration-500 ease-out-expo group-hover:translate-x-0.5" />

@@ -1,3 +1,19 @@
+import type { StaticImageData } from "next/image";
+import aboutQuality from "@/public/about/quality.webp";
+import aboutSelection from "@/public/about/selection.webp";
+import aboutSupport from "@/public/about/support.webp";
+import aboutWide from "@/public/about/wide.webp";
+import slide1 from "@/public/projects/slide1.webp";
+import slide2 from "@/public/projects/slide2.webp";
+import slide3 from "@/public/projects/slide3.webp";
+import slide4 from "@/public/projects/slide4.webp";
+import slide5 from "@/public/projects/slide5.webp";
+import slide6 from "@/public/projects/slide6.webp";
+import slide7 from "@/public/projects/slide7.webp";
+import slide8 from "@/public/projects/slide8.webp";
+import slide9 from "@/public/projects/slide9.webp";
+import slide10 from "@/public/projects/slide10.webp";
+
 export type LonLat = [lon: number, lat: number];
 
 export const countries = {
@@ -62,14 +78,46 @@ export const contact = {
 };
 
 export const hero = {
-  eyebrow: "Balsoa Consulting · Vienna, Austria",
   lines: ["Energy, Oil & Gas", "Advisory & Engineering", "Solutions."],
   lead: "Engineering know-how and global partnerships for energy, oil and gas projects, from concept to commissioning.",
   stats: [
-    { value: "14+14", unit: "MWe / MWt", label: "Gas-engine CHP, Novi Sad" },
-    { value: "48″", unit: "Ø valves", label: "Balkan Stream interconnector" },
-    { value: "13", unit: "countries", label: "Across four continents", flags: Object.keys(countries) as CountryCode[] },
-    { value: "9", unit: "AVL", label: "Approved vendor registrations" },
+    {
+      value: "14+14",
+      unit: "MWe / MWt",
+      label: "Gas-engine CHP, Novi Sad",
+      hint: {
+        term: "MWe / MWt",
+        text: "Megawatts of electricity (e) and of heat (t). A CHP plant burns gas once and delivers both: power for the grid, heat for the city.",
+      },
+    },
+    {
+      value: "48″",
+      unit: "Ø valves",
+      label: "Balkan Stream interconnector",
+      hint: {
+        term: "48″ Ø",
+        text: "Ø means diameter. 48 inches is about 1.2 m, the size used on main cross-border gas lines.",
+      },
+    },
+    {
+      value: "13",
+      unit: "countries",
+      label: "Across four continents",
+      flags: Object.keys(countries) as CountryCode[],
+      hint: {
+        term: "13 countries",
+        text: "Where we have delivered: 7 in Europe, 1 in the Middle East and 5 in the Americas.",
+      },
+    },
+    {
+      value: "9",
+      unit: "AVL",
+      label: "Approved vendor registrations",
+      hint: {
+        term: "AVL",
+        text: "Approved Vendor List. Big energy companies only buy from suppliers they have vetted. We are on 9 of these lists.",
+      },
+    },
   ],
 };
 
@@ -96,10 +144,23 @@ export const about = {
   statement:
     "We unite technical expertise, engineering know-how and global partnerships across energy, oil and gas.",
   body: "Long-standing partners worldwide let us choose the right equipment, guarantee quality at competitive prices and compete on equal terms with the industry’s global leaders.",
+  image: { src: aboutWide, alt: "Gas metering station with large valves at sunrise", caption: "Metering station" },
   pillars: [
-    { title: "Technical support", text: "From first assessment to delivery." },
-    { title: "Equipment selection", text: "Pipes, valves, metering stations, engines and turbines." },
-    { title: "Quality, fairly priced", text: "Backed by long-standing global partners." },
+    {
+      title: "Technical support",
+      text: "From first assessment to delivery.",
+      image: { src: aboutSupport, alt: "Engineer checking drawings on a tablet beside a pipeline valve" },
+    },
+    {
+      title: "Equipment selection",
+      text: "Pipes, valves, metering stations, engines and turbines.",
+      image: { src: aboutSelection, alt: "Actuated ball valves lined up on pallets in a warehouse" },
+    },
+    {
+      title: "Quality, fairly priced",
+      text: "Backed by long-standing global partners.",
+      image: { src: aboutQuality, alt: "Caliper measuring a machined pipe flange" },
+    },
   ],
 };
 
@@ -363,6 +424,45 @@ export type CalcRow = {
   /** Draw the column-addition rule under this row. */
   sum?: boolean;
   mark?: "circle" | "underline" | "check";
+};
+
+export type SitePhoto = { src: StaticImageData; caption: string };
+
+export type SiteRow = {
+  label: string;
+  /** Which way the row drifts across the screen. */
+  direction: "left" | "right";
+  photos: SitePhoto[];
+};
+
+export const onSite = {
+  label: "On site",
+  title: "From pipe yard to pipeline.",
+  intro: "Pipe, valves and supervision, out on the line.",
+  rows: [
+    {
+      label: "Along the route",
+      direction: "right",
+      photos: [
+        { src: slide1, caption: "Right-of-way across farmland" },
+        { src: slide9, caption: "Welding spread from above" },
+        { src: slide5, caption: "Pipe strung along the trench" },
+        { src: slide10, caption: "Sidebooms on the line" },
+        { src: slide8, caption: "Welded string on skids" },
+      ],
+    },
+    {
+      label: "Up close",
+      direction: "left",
+      photos: [
+        { src: slide2, caption: "Pipe yard" },
+        { src: slide3, caption: "Stringing" },
+        { src: slide4, caption: "Welding spread" },
+        { src: slide7, caption: "Line-up and welding" },
+        { src: slide6, caption: "Coated line pipe" },
+      ],
+    },
+  ] satisfies SiteRow[],
 };
 
 export const contactSection = {

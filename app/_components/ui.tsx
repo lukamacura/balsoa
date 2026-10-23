@@ -1,17 +1,16 @@
+import Image, { type ImageProps } from "next/image";
 import type { ReactNode, SVGProps } from "react";
+import wordmark from "@/public/logo/logo1.png";
+import mark from "@/public/logo/logo2.png";
 
-export function Logo({ className = "" }: { className?: string }) {
-  return (
-    <span className={`flex items-center gap-3 ${className}`}>
-      <ValveMark className="h-7 w-7" />
-      <span className="leading-none">
-        <span className="block text-[15px] font-semibold tracking-[0.24em]">BALSOA</span>
-        <span className="mt-1 block font-mono text-[9px] uppercase leading-none tracking-[0.32em] text-steel">
-          Consulting
-        </span>
-      </span>
-    </span>
-  );
+/** "Balsoa | Consulting" wordmark, white on transparent. Size it with a height class. */
+export function Logo({ className = "", ...props }: Omit<ImageProps, "src" | "alt">) {
+  return <Image src={wordmark} alt="Balsoa Consulting" unoptimized className={`w-auto ${className}`} {...props} />;
+}
+
+/** The "B" drop mark. Decorative: always paired with the wordmark. */
+export function LogoMark({ className = "" }: { className?: string }) {
+  return <Image src={mark} alt="" unoptimized className={`w-auto ${className}`} />;
 }
 
 /** Ball valve with actuator, drawn like a P&ID symbol. */
@@ -35,13 +34,14 @@ export function SectionLabel({
   children,
   className = "",
 }: {
-  index: string;
+  /** Omit for interludes that sit outside the numbered sections. */
+  index?: string;
   children: ReactNode;
   className?: string;
 }) {
   return (
     <p className={`label-mono flex items-center gap-3 self-start ${className}`}>
-      <span className="text-flare">{index}</span>
+      {index ? <span className="text-flare">{index}</span> : <span className="h-1.5 w-1.5 rounded-full bg-flare" />}
       <span className="h-px w-8 bg-current opacity-30" />
       <span>{children}</span>
     </p>
@@ -69,6 +69,35 @@ export function ArrowIcon(props: SVGProps<SVGSVGElement>) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+export function PinIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" {...props}>
+      <path
+        d="M8 14.5s4.75-4.1 4.75-8.1a4.75 4.75 0 1 0-9.5 0c0 4 4.75 8.1 4.75 8.1z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <circle cx="8" cy="6.4" r="1.6" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function QuestionIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" {...props}>
+      <circle cx="8" cy="8" r="6.75" stroke="currentColor" strokeWidth="1.25" />
+      <path
+        d="M6.2 6.3a1.85 1.85 0 1 1 2.65 1.67c-.55.27-.85.68-.85 1.23v.3"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+      />
+      <circle cx="8" cy="11.35" r=".85" fill="currentColor" />
     </svg>
   );
 }

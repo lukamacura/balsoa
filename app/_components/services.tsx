@@ -8,7 +8,7 @@ export function Services() {
     <section id="services" aria-labelledby="services-title" className="relative bg-paper text-ink">
       <PipelineProgress className="pipeline relative lg:h-[250svh]">
         <div className="drafting-grid relative overflow-hidden lg:sticky lg:top-0 lg:flex lg:h-svh lg:flex-col lg:justify-center">
-          <div className="shell py-28 lg:py-0 lg:pt-12">
+          <div className="shell py-28 lg:py-0 lg:pt-18">
             <div className="grid gap-8 lg:grid-cols-12 lg:items-end">
               <div className="lg:col-span-7">
                 <SectionLabel index="03" className="text-ink/60">
@@ -17,14 +17,14 @@ export function Services() {
                 <h2
                   id="services-title"
                   data-reveal
-                  className="mt-6 text-[clamp(2.25rem,4.4vw,4.25rem)] font-medium leading-[1] tracking-[-0.035em]"
+                  className="mt-6 text-[clamp(2.25rem,4.4vw,4.25rem)] font-medium leading-[1] tracking-[-0.035em] short:mt-4 short:text-[clamp(2.25rem,min(4.4vw,7svh),4.25rem)]"
                 >
                   {services.title}
                 </h2>
               </div>
               <div data-reveal className="lg:col-span-4 lg:col-start-9">
                 <p className="text-lg leading-relaxed text-ink/65">{services.intro}</p>
-                <p aria-hidden="true" className="label-mono mt-5 flex items-center gap-3 text-ink/50">
+                <p aria-hidden="true" className="label-mono mt-5 flex items-center gap-3 text-ink/50 short:mt-3">
                   <span className="h-px w-8 bg-current opacity-40" />
                   Flow
                   <span className="tabular-nums text-flare-deep">
@@ -34,7 +34,7 @@ export function Services() {
               </div>
             </div>
 
-            <div className="relative mt-16 lg:mt-20">
+            <div className="relative mt-16 lg:mt-20 short:mt-10 shorter:mt-7">
               <div aria-hidden="true" data-pipe className="pipe">
                 <span className="pipe-fill" />
                 <span className="pipe-head" />
@@ -50,15 +50,15 @@ export function Services() {
                     <div data-station-node className="station-node relative flex size-(--node) items-center justify-center rounded-full">
                       <ServiceGlyph id={service.id} className="station-glyph size-9 lg:size-11" />
                     </div>
-                    <div className="pt-3 lg:mt-8 lg:pt-0">
+                    <div className="pt-3 lg:mt-8 lg:pt-0 short:mt-5">
                       <p className="station-fade font-mono text-xs text-flare-deep">0{i + 1}</p>
                       <h3 className="station-fade mt-2 text-2xl font-medium tracking-tight xl:text-3xl">{service.title}</h3>
-                      <p className="station-fade mt-3 max-w-sm leading-relaxed text-ink/60">{service.summary}</p>
-                      <ul className="mt-5 flex flex-wrap gap-2">
+                      <p className="station-fade mt-3 max-w-sm leading-relaxed text-ink/60 short:mt-2">{service.summary}</p>
+                      <ul className="mt-5 flex flex-wrap gap-2 short:mt-4 short:gap-1.5">
                         {service.points.map((point, j) => (
                           <li
                             key={point}
-                            className="station-chip rounded-full border border-ink/15 bg-paper px-3 py-1.5 text-sm text-ink/75"
+                            className="station-chip rounded-full border border-ink/15 bg-paper px-3 py-1.5 text-sm text-ink/75 short:py-1 short:text-[13px]"
                             style={{ "--d": 140 + j * 70 } as CSSProperties}
                           >
                             {point}
@@ -73,7 +73,7 @@ export function Services() {
 
             <div
               aria-hidden="true"
-              className="mt-12 hidden items-end gap-10 font-mono text-[10px] uppercase tracking-[0.18em] text-ink/45 lg:flex"
+              className="mt-12 hidden items-end gap-10 font-mono text-[10px] uppercase tracking-[0.18em] text-ink/45 lg:flex short:mt-8 shorter:hidden"
             >
               <div className="flex flex-1 items-center gap-4 pb-4">
                 <span>Concept</span>

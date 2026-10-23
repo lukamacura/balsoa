@@ -2,6 +2,7 @@ import { About } from "./_components/about";
 import { Contact } from "./_components/contact";
 import { Hero } from "./_components/hero";
 import { Numbers } from "./_components/numbers";
+import { OnSite } from "./_components/on-site";
 import { PartnerMarquee } from "./_components/partner-marquee";
 import { Reach } from "./_components/reach";
 import { References } from "./_components/references";
@@ -22,6 +23,7 @@ export default function Home() {
         <Services />
         <Numbers />
         <References />
+        <OnSite />
         <Contact />
       </main>
       <SiteFooter />

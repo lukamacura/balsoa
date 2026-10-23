@@ -269,7 +269,7 @@ export function CalcSheet({
           <button
             type="button"
             onClick={() => (phase === "writing" ? controls.current?.skip() : controls.current?.start())}
-            className="label-mono group inline-flex h-10 items-center gap-3 rounded-full border border-white/15 pl-3 pr-4 text-white/70 transition-colors hover:border-white/40 hover:text-white"
+            className="press label-mono group inline-flex h-10 items-center gap-3 rounded-full border border-white/15 pl-3 pr-4 text-white/70 hover:border-white/40 hover:text-white"
           >
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/10">
               <svg viewBox="0 0 10 10" className="h-2 w-2" aria-hidden="true">

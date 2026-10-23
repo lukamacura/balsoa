@@ -4,8 +4,21 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import type { ReferenceGroup } from "@/lib/content";
 import { HQ, formatCoords } from "@/lib/map";
 import { clamp, damp, easeOutCubic, useReducedMotion } from "./motion";
-import { createPlanMap, type Insets, type PlanMap } from "./plan-map";
+import { createPlanMap, type Insets, type PlanMap, type RGB } from "./plan-map";
 import { Flag } from "./ui";
+
+/** Each category keeps its own colour on the tabs, list, pins, arcs and glow. */
+const TONES: Record<string, RGB> = {
+  energy: [245, 161, 66],
+  "oil-gas": [74, 196, 230],
+  avl: [168, 146, 255],
+};
+
+const toneOf = (id: string) => TONES[id] ?? TONES.energy;
+const css = ([r, g, b]: RGB) => `rgb(${r} ${g} ${b})`;
+
+/** Gap between a pin and its tooltip card. */
+const TIP_GAP = 18;
 
 export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
   const [groupId, setGroupId] = useState(groups[0].id);
@@ -28,6 +41,9 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
     [group],
   );
   const active = group.items.find((item) => item.id === activeId && item.coords);
+  // The tooltip keeps the last pin's content while it fades out.
+  const [tip, setTip] = useState(active);
+  if (active && active !== tip) setTip(active);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -53,7 +69,7 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
       };
     };
 
-    const tip = { x: 0, y: 0, shown: false };
+    const glide = { x: 0, y: 0, shown: false };
     let tilt = -1;
     let scaleKm = 0;
 
@@ -61,22 +77,31 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
       reduced,
       insets,
       onHover: setActiveId,
-      onFrame: ({ dt, active, scaleKm: km, scalePx }) => {
-        // The tooltip glides between pins instead of jumping.
+      onFrame: ({ dt, width, inset, active, scaleKm: km, scalePx }) => {
+        // The tooltip glides between pins instead of jumping, stays inside the clear area of
+        // the map and drops below pins that sit too close to the top.
         const tooltip = tooltipRef.current;
         if (tooltip && active) {
-          if (!tip.shown || reduced) {
-            tip.x = active.x;
-            tip.y = active.y;
+          const w = tooltip.offsetWidth;
+          const h = tooltip.offsetHeight;
+          const below = active.y - h - TIP_GAP < inset.top;
+          const x = clamp(active.x - w / 2, inset.left, Math.max(inset.left, width - inset.right - w));
+          const y = below ? active.y + TIP_GAP : active.y - h - TIP_GAP;
+          if (!glide.shown || reduced) {
+            glide.x = x;
+            glide.y = y;
           } else {
-            tip.x = damp(tip.x, active.x, 16, dt);
-            tip.y = damp(tip.y, active.y, 16, dt);
+            glide.x = damp(glide.x, x, 16, dt);
+            glide.y = damp(glide.y, y, 16, dt);
           }
-          tip.shown = true;
-          tooltip.style.transform = `translate3d(${tip.x.toFixed(1)}px, ${tip.y.toFixed(1)}px, 0)`;
+          glide.shown = true;
+          tooltip.style.transform = `translate3d(${glide.x.toFixed(1)}px, ${glide.y.toFixed(1)}px, 0)`;
+          tooltip.style.setProperty("--ox", `${(active.x - glide.x).toFixed(1)}px`);
+          tooltip.style.setProperty("--oy", `${below ? -TIP_GAP : h + TIP_GAP}px`);
           tooltip.style.opacity = "1";
-        } else {
-          tip.shown = false;
+        } else if (tooltip && glide.shown) {
+          glide.shown = false;
+          tooltip.style.opacity = "0";
         }
 
         if (scaleBarRef.current && scaleLabelRef.current && km !== scaleKm) {
@@ -112,6 +137,10 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
     engineRef.current?.setActive(activeId);
   }, [activeId, reduced]);
 
+  useEffect(() => {
+    engineRef.current?.setTone(toneOf(groupId));
+  }, [groupId, reduced]);
+
   // Sliding tab indicator, measured from the selected tab.
   useLayoutEffect(() => {
     const place = () => {
@@ -143,7 +172,8 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
   return (
     <div
       ref={stageRef}
-      className="plan-stage relative origin-[50%_100%] overflow-hidden rounded-sm border border-white/10 bg-ink lg:h-[min(86svh,880px)] lg:min-h-[620px]"
+      className="plan-stage relative origin-[50%_100%] overflow-hidden rounded-sm border border-white/10 lg:h-[min(86svh,880px)] lg:min-h-[620px]"
+      style={{ "--tone": css(toneOf(group.id)) } as CSSProperties}
     >
       <div className="relative p-3 lg:absolute lg:left-4 lg:top-4 lg:z-10 lg:p-0">
         <div
@@ -153,7 +183,7 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
           onKeyDown={onTabKey}
           className="no-scrollbar relative flex max-w-full overflow-x-auto rounded-full border border-white/12 bg-ink/70 p-1 backdrop-blur-xl lg:inline-flex"
         >
-          <span ref={pillRef} aria-hidden="true" className="tab-pill absolute inset-y-1 left-0 rounded-full bg-flare" />
+          <span ref={pillRef} aria-hidden="true" className="tab-pill absolute inset-y-1 left-0 rounded-full bg-(--tone)" />
           {groups.map((g) => {
             const selected = g.id === groupId;
             return (
@@ -171,7 +201,10 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
                 }`}
               >
                 {g.label}
-                <span className={`font-mono text-xs ${selected ? "text-ink/60" : "text-white/35"}`}>
+                <span
+                  className={`font-mono text-xs transition-colors duration-500 ${selected ? "text-ink/60" : ""}`}
+                  style={selected ? undefined : { color: css(toneOf(g.id)) }}
+                >
                   {String(g.items.length).padStart(2, "0")}
                 </span>
               </button>
@@ -183,32 +216,32 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
       <div className="relative aspect-[4/5] sm:aspect-[16/10] lg:absolute lg:inset-0 lg:aspect-auto">
         <canvas ref={canvasRef} aria-hidden="true" className="absolute inset-0 h-full w-full" />
 
-        {active && (
+        {tip && (
           <div
             ref={tooltipRef}
             aria-hidden="true"
             className="pointer-events-none absolute left-0 top-0 z-10 opacity-0 transition-opacity duration-300"
           >
             <div
-              key={active.id}
-              className="map-tip -translate-x-1/2 -translate-y-[calc(100%+18px)] rounded-sm border border-white/15 bg-ink/85 px-3.5 py-2.5 shadow-2xl shadow-black/50 backdrop-blur-xl"
+              key={tip.id}
+              className="map-tip max-w-[calc(100vw-4.5rem)] rounded-sm border border-white/15 bg-ink/85 px-3.5 py-2.5 shadow-2xl shadow-black/50 backdrop-blur-xl"
             >
               <p className="flex items-center justify-between gap-4 font-mono text-[10px] uppercase tracking-[0.16em]">
-                <span className="flex items-center gap-2 text-flare">
-                  {active.flags?.map((code) => <Flag key={code} code={code} />)}
-                  {active.place}
+                <span className="flex items-center gap-2 text-(--tone)">
+                  {tip.flags?.map((code) => <Flag key={code} code={code} />)}
+                  {tip.place}
                 </span>
-                {active.metric && <span className="text-white/60">{active.metric}</span>}
+                {tip.metric && <span className="shrink-0 text-white/60">{tip.metric}</span>}
               </p>
-              <p className="mt-1 whitespace-nowrap text-sm font-medium text-white">{active.title}</p>
-              {active.detail && <p className="mt-1 w-max max-w-60 text-xs leading-relaxed text-white/55">{active.detail}</p>}
+              <p className="mt-1 text-sm font-medium text-white">{tip.title}</p>
+              {tip.detail && <p className="mt-1 w-max max-w-60 text-xs leading-relaxed text-white/55">{tip.detail}</p>}
             </div>
           </div>
         )}
 
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap items-end gap-x-6 gap-y-1 bg-linear-to-t from-ink/90 to-transparent p-4 pt-10 font-mono text-[10px] uppercase tracking-[0.18em] text-white/50"
+          className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap items-end gap-x-6 gap-y-1 bg-linear-to-t from-[#05070b]/90 to-transparent p-4 pt-10 font-mono text-[10px] uppercase tracking-[0.18em] text-white/50"
         >
           <span>Fig. 04 · Plan view · {group.label}</span>
           <span className="tabular-nums text-white/70">{formatCoords(active?.coords ?? HQ.coords)}</span>
@@ -244,7 +277,7 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
                   }`}
                 >
                   <span
-                    className={`absolute inset-y-0 left-0 w-px origin-top bg-flare transition-transform duration-500 ease-out-expo ${
+                    className={`absolute inset-y-0 left-0 w-px origin-top bg-(--tone) transition-transform duration-500 ease-out-expo ${
                       isActive ? "scale-y-100" : "scale-y-0"
                     }`}
                   />
@@ -253,7 +286,7 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
                       {item.flags?.map((code) => <Flag key={code} code={code} />)}
                       {item.place}
                     </span>
-                    {item.metric && <span className="shrink-0 font-mono text-xs text-flare">{item.metric}</span>}
+                    {item.metric && <span className="shrink-0 font-mono text-xs text-(--tone)">{item.metric}</span>}
                   </span>
                   <span
                     className={`mt-1.5 block text-[17px] font-medium leading-snug tracking-tight transition-transform duration-500 ease-out-expo ${

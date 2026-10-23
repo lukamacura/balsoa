@@ -26,6 +26,9 @@ export type GlobeSite = { coords: LonLat; stage: number };
 const RAD = Math.PI / 180;
 const TAU = Math.PI * 2;
 const ARC_SAMPLES = 56;
+// Enough shading steps that dots never visibly pop between bands as the globe turns.
+const DEPTH_BANDS = 12;
+const HEAT_BANDS = 8;
 
 type Vec3 = [number, number, number];
 
@@ -227,8 +230,8 @@ export function ReachGlobe({
       const from = stages[base].view;
       const to = stages[base + 1].view;
       const t = travel - base;
-      pointer.x = damp(pointer.x, pointer.tx, 3, dt);
-      pointer.y = damp(pointer.y, pointer.ty, 3, dt);
+      pointer.x = damp(pointer.x, pointer.tx, 2, dt);
+      pointer.y = damp(pointer.y, pointer.ty, 2, dt);
       const targetLon = lerp(from[0], to[0], t) - (1 - enter) * 50 - pointer.x * 6;
       const targetLat = lerp(from[1], to[1], t) + pointer.y * 4;
       const targetZoom = (0.82 + 0.18 * enter) * lerp(stages[base].zoom, stages[base + 1].zoom, t);
@@ -239,9 +242,9 @@ export function ReachGlobe({
         zoom.value = targetZoom;
         primed = true;
       } else {
-        stepSpring(lon, targetLon, dt, 1.1);
-        stepSpring(lat, targetLat, dt, 1.1);
-        stepSpring(zoom, targetZoom, dt, 0.9);
+        stepSpring(lon, targetLon, dt, 1.4);
+        stepSpring(lat, targetLat, dt, 1.4);
+        stepSpring(zoom, targetZoom, dt, 1.2);
       }
       if (!dragging) stepSpring(yaw, 0, dt, 2.4);
 
@@ -257,7 +260,7 @@ export function ReachGlobe({
           n.landedAt = -1;
         }
       }
-      glow.forEach((g, i) => (glow[i] = damp(g, i === index ? 1 : 0, 3, dt)));
+      glow.forEach((g, i) => (glow[i] = damp(g, i === index ? 1 : 0, 2.2, dt)));
 
       // ---- Layout
       const wide = width >= 1024;
@@ -338,38 +341,39 @@ export function ReachGlobe({
         }
         const scale = R / 380;
 
-        ctx.beginPath();
-        for (let i = 0; i < count; i++) if (pd[i] < 0) ctx.rect(px[i] - 0.5, py[i] - 0.5, 1, 1);
+        // One pass sorts every dot into its shade band; size follows depth exactly.
+        const back = new Path2D();
+        const shadePaths = Array.from({ length: DEPTH_BANDS }, () => new Path2D());
+        const hotPaths = Array.from({ length: HEAT_BANDS }, () => new Path2D());
+        for (let i = 0; i < count; i++) {
+          const d = pd[i];
+          if (d < 0) {
+            back.rect(px[i] - 0.5, py[i] - 0.5, 1, 1);
+            continue;
+          }
+          const r = Math.max(0.5, (0.55 + 0.85 * d) * scale * 1.15);
+          const band = shadePaths[Math.min(DEPTH_BANDS - 1, Math.floor(d * DEPTH_BANDS))];
+          band.moveTo(px[i] + r, py[i]);
+          band.arc(px[i], py[i], r, 0, TAU);
+
+          const h = (heat[i] - 0.06) / 0.94;
+          if (d <= 0.05 || h <= 0) continue;
+          const hr = Math.max(0.6, (0.6 + 0.9 * d) * scale * 1.2);
+          const hot = hotPaths[Math.min(HEAT_BANDS - 1, Math.floor(h * HEAT_BANDS))];
+          hot.moveTo(px[i] + hr, py[i]);
+          hot.arc(px[i], py[i], hr, 0, TAU);
+        }
+
         ctx.fillStyle = "rgba(138,150,163,0.08)";
-        ctx.fill();
-
-        for (let b = 0; b < 4; b++) {
-          const lo = b / 4;
-          const hi = lo + 0.25;
-          const r = Math.max(0.5, (0.55 + 0.85 * (lo + 0.125)) * scale * 1.15);
-          ctx.beginPath();
-          for (let i = 0; i < count; i++) {
-            if (pd[i] < lo || pd[i] >= hi) continue;
-            ctx.moveTo(px[i] + r, py[i]);
-            ctx.arc(px[i], py[i], r, 0, TAU);
-          }
-          ctx.fillStyle = `rgba(138,150,163,${0.2 + b * 0.14})`;
-          ctx.fill();
-        }
-
-        for (let b = 0; b < 3; b++) {
-          const lo = 0.06 + b * 0.31;
-          const hi = lo + 0.31;
-          ctx.beginPath();
-          for (let i = 0; i < count; i++) {
-            if (pd[i] <= 0.05 || heat[i] < lo || heat[i] >= hi) continue;
-            const r = Math.max(0.6, (0.6 + 0.9 * pd[i]) * scale * 1.2);
-            ctx.moveTo(px[i] + r, py[i]);
-            ctx.arc(px[i], py[i], r, 0, TAU);
-          }
-          ctx.fillStyle = `rgba(245,161,66,${0.3 + b * 0.28})`;
-          ctx.fill();
-        }
+        ctx.fill(back);
+        shadePaths.forEach((path, b) => {
+          ctx.fillStyle = `rgba(138,150,163,${(0.2 + (0.42 * (b + 0.5)) / DEPTH_BANDS).toFixed(3)})`;
+          ctx.fill(path);
+        });
+        hotPaths.forEach((path, b) => {
+          ctx.fillStyle = `rgba(245,161,66,${(0.3 + (0.56 * b) / (HEAT_BANDS - 1)).toFixed(3)})`;
+          ctx.fill(path);
+        });
       }
 
       // Arcs from Vienna
