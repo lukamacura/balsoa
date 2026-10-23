@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import type { ReferenceGroup } from "@/lib/content";
 import { HQ, formatCoords } from "@/lib/map";
-import { clamp, damp, easeOutCubic, useReducedMotion } from "./motion";
+import { clamp, damp, useReducedMotion } from "./motion";
 import { createPlanMap, type Insets, type PlanMap, type RGB } from "./plan-map";
 import { Flag } from "./ui";
 
@@ -64,11 +64,23 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
     const stage = stageRef.current;
     if (!canvas || !stage) return;
 
+    // Layout box relative to the stage. Unlike getBoundingClientRect it ignores the stage's
+    // entrance tilt, so the framing doesn't drift while the map scrolls in.
+    const layoutBox = (el: HTMLElement) => {
+      let left = 0;
+      let top = 0;
+      for (let node: HTMLElement | null = el; node && node !== stage; node = node.offsetParent as HTMLElement | null) {
+        left += node.offsetLeft;
+        top += node.offsetTop;
+      }
+      return { left, top, right: left + el.offsetWidth, bottom: top + el.offsetHeight, width: el.offsetWidth };
+    };
+
     // Keep the framed area clear of whatever floats over the canvas (tabs, list panel, legend).
     const insets = (): Insets => {
-      const box = canvas.getBoundingClientRect();
+      const box = layoutBox(canvas);
       const over = (el: HTMLElement | null) => {
-        const r = el?.getBoundingClientRect();
+        const r = el && layoutBox(el);
         return r && r.width > 0 && r.left < box.right && r.right > box.left && r.top < box.bottom && r.bottom > box.top
           ? r
           : null;
@@ -84,7 +96,6 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
     };
 
     const glide = { x: 0, y: 0, shown: false };
-    let tilt = -1;
     let scaleKm = 0;
 
     const engine = createPlanMap(canvas, {
@@ -123,17 +134,6 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
           scaleLabelRef.current.textContent = `${km.toLocaleString("en")} km`;
         }
         if (scaleBarRef.current) scaleBarRef.current.style.width = `${scalePx.toFixed(1)}px`;
-
-        // Entrance: the map tilts up from an oblique angle and flattens as it scrolls in.
-        const enter = reduced ? 1 : easeOutCubic(clamp((window.innerHeight - stage.getBoundingClientRect().top) / (window.innerHeight * 0.8)));
-        const next = Math.round((1 - enter) * 1000) / 1000;
-        if (next !== tilt) {
-          tilt = next;
-          stage.style.transform = next
-            ? `perspective(1800px) rotateX(${(next * 18).toFixed(2)}deg) scale(${(1 - next * 0.05).toFixed(4)})`
-            : "";
-          stage.style.opacity = String(1 - next * 0.5);
-        }
       },
     });
     engineRef.current = engine;
@@ -222,7 +222,7 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
           role="tablist"
           aria-label="Reference categories"
           onKeyDown={onTabKey}
-          className="no-scrollbar relative flex max-w-full overflow-x-auto rounded-full border border-white/12 bg-ink/70 p-1 backdrop-blur-xl sm:inline-flex"
+          className="no-scrollbar relative flex max-w-full overflow-x-auto rounded-full border border-white/12 bg-ink/70 p-1 sm:inline-flex lg:backdrop-blur-xl"
         >
           <span ref={pillRef} aria-hidden="true" className="tab-pill absolute inset-y-1 left-0 rounded-full bg-(--tone)" />
           {groups.map((g) => {

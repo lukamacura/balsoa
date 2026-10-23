@@ -490,7 +490,7 @@ export function createPlanMap(
     });
   };
 
-  const stop = animateWhileVisible(canvas, frame);
+  const stop = animateWhileVisible(canvas, frame, "25% 0px");
 
   return {
     setPins,

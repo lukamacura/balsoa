@@ -55,8 +55,11 @@ export function pinnedProgress(track: HTMLElement) {
   return span > 0 ? clamp(-rect.top / span) : 0;
 }
 
-/** Runs `frame` on every animation frame while `el` is on screen. */
-export function animateWhileVisible(el: Element, frame: (dt: number, time: number) => void) {
+/**
+ * Runs `frame` on every animation frame while `el` is on screen. `margin` starts it early, so
+ * the first frame is already drawn when the element scrolls in.
+ */
+export function animateWhileVisible(el: Element, frame: (dt: number, time: number) => void, margin = "0px") {
   let raf = 0;
   let last = 0;
   const tick = (now: number) => {
@@ -74,7 +77,7 @@ export function animateWhileVisible(el: Element, frame: (dt: number, time: numbe
       cancelAnimationFrame(raf);
       raf = 0;
     }
-  });
+  }, { rootMargin: margin });
   observer.observe(el);
   return () => {
     observer.disconnect();
@@ -86,16 +89,19 @@ export type CanvasSize = { width: number; height: number; dpr: number };
 
 /** Keeps a canvas backing store matched to its CSS size and device pixel ratio. */
 export function trackCanvasSize(canvas: HTMLCanvasElement, size: CanvasSize) {
-  const update = () => {
-    const rect = canvas.getBoundingClientRect();
+  // Layout size, not getBoundingClientRect, which would shrink with a transformed ancestor.
+  const update = (width: number, height: number) => {
     size.dpr = Math.min(window.devicePixelRatio || 1, 2);
-    size.width = rect.width;
-    size.height = rect.height;
-    canvas.width = Math.round(rect.width * size.dpr);
-    canvas.height = Math.round(rect.height * size.dpr);
+    size.width = width;
+    size.height = height;
+    // Assigning a canvas dimension clears it, even to the same value.
+    const w = Math.round(width * size.dpr);
+    const h = Math.round(height * size.dpr);
+    if (canvas.width !== w) canvas.width = w;
+    if (canvas.height !== h) canvas.height = h;
   };
-  update();
-  const observer = new ResizeObserver(update);
+  update(canvas.clientWidth, canvas.clientHeight);
+  const observer = new ResizeObserver(([entry]) => update(entry.contentRect.width, entry.contentRect.height));
   observer.observe(canvas);
   return () => observer.disconnect();
 }
