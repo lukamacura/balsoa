@@ -40,39 +40,42 @@ export function Hero() {
         48.2082° N · 16.3738° E
       </p>
 
-      <div className="hero-recede shell relative flex flex-1 flex-col justify-end pb-8 pt-32 portrait:pt-[46svh] lg:pb-12">
-        <p className="fade-up label-mono flex items-center gap-2 text-white/70" style={delay(100)}>
-          <PinIcon className="size-3.5 text-flare" />
-          {contact.location}
-        </p>
+      <div className="hero-recede shell relative flex flex-1 flex-col justify-end pb-8 pt-32 max-sm:portrait:pt-24 sm:portrait:pt-[46svh] lg:pb-12">
+        {/* Phones: the copy sits on the bottom of the first screen so both buttons show without scrolling. */}
+        <div className="flex flex-col justify-end max-sm:portrait:min-h-[calc(100svh-7.5rem)]">
+          <p className="fade-up label-mono flex items-center gap-2 text-white/70" style={delay(100)}>
+            <PinIcon className="size-3.5 text-flare" />
+            {contact.location}
+          </p>
 
-        <h1 className="hero-text mt-6 max-w-[16ch] text-[clamp(2.6rem,6.4vw,6.75rem)] font-medium leading-[0.95] tracking-[-0.04em] sm:max-w-none">
-          {hero.lines.map((line, i) => (
-            <span key={line} className="line-mask">
-              <span className={i === hero.lines.length - 1 ? "text-steel" : undefined} style={delay(200 + i * 110)}>
-                {line}
+          <h1 className="hero-text mt-4 max-w-[16ch] text-[clamp(2.6rem,6.4vw,6.75rem)] font-medium leading-[0.95] tracking-[-0.04em] sm:mt-6 sm:max-w-none">
+            {hero.lines.map((line, i) => (
+              <span key={line} className="line-mask">
+                <span className={i === hero.lines.length - 1 ? "text-steel" : undefined} style={delay(200 + i * 110)}>
+                  {line}
+                </span>
               </span>
-            </span>
-          ))}
-        </h1>
+            ))}
+          </h1>
 
-        <p className="hero-text fade-up mt-8 max-w-xl text-base leading-relaxed text-white/75 sm:text-lg" style={delay(650)}>
-          {hero.lead}
-        </p>
-        <div className="fade-up mt-8 flex flex-wrap items-center gap-3" style={delay(800)}>
-          <a
-            href="#contact"
-            className="press group inline-flex h-12 items-center gap-3 rounded-full bg-flare pl-6 pr-5 text-sm font-medium text-ink hover:bg-white"
-          >
-            Start a project
-            <ArrowIcon className="h-4 w-4 transition-transform duration-500 ease-out-expo group-hover:translate-x-1" />
-          </a>
-          <a
-            href="#services"
-            className="press inline-flex h-12 items-center rounded-full border border-white/20 px-6 text-sm font-medium text-white hover:border-white hover:bg-white/5"
-          >
-            Explore services
-          </a>
+          <p className="hero-text fade-up mt-6 max-w-xl text-base leading-relaxed text-white/75 sm:mt-8 sm:text-lg" style={delay(650)}>
+            {hero.lead}
+          </p>
+          <div className="fade-up mt-6 flex flex-wrap items-center gap-3 sm:mt-8" style={delay(800)}>
+            <a
+              href="#contact"
+              className="press group inline-flex h-12 items-center gap-3 rounded-full bg-flare pl-6 pr-5 text-sm font-medium text-ink hover:bg-white"
+            >
+              Start a project
+              <ArrowIcon className="h-4 w-4 transition-transform duration-500 ease-out-expo group-hover:translate-x-1" />
+            </a>
+            <a
+              href="#services"
+              className="press inline-flex h-12 items-center rounded-full border border-white/20 px-6 text-sm font-medium text-white hover:border-white hover:bg-white/5"
+            >
+              Explore services
+            </a>
+          </div>
         </div>
 
         <dl className="mt-14 grid grid-cols-2 border-t border-white/12 lg:grid-cols-4">

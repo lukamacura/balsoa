@@ -47,6 +47,8 @@ export type ReferenceItem = {
 export type ReferenceGroup = {
   id: string;
   label: string;
+  /** Tab label on phones, where all three tabs share one row. */
+  short?: string;
   intro: string;
   items: ReferenceItem[];
 };
@@ -356,6 +358,7 @@ export const references = {
     {
       id: "avl",
       label: "Approved Vendor Lists",
+      short: "Vendor lists",
       intro: "Direct supplier registration with national energy companies.",
       items: [
         {

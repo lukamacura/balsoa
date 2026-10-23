@@ -211,6 +211,7 @@ export function createPlanMap(
     return best;
   };
   const onMove = (e: PointerEvent) => {
+    if (e.pointerType !== "mouse") return;
     const box = canvas.getBoundingClientRect();
     const id = pinAt(e.clientX - box.left, e.clientY - box.top);
     canvas.style.cursor = id ? "pointer" : "";
@@ -222,13 +223,30 @@ export function createPlanMap(
       options.onHover(null);
     }
   };
-  const onLeave = () => {
+  const onLeave = (e: PointerEvent) => {
+    if (e.pointerType !== "mouse") return;
     if (hovering) options.onHover(null);
     hovering = false;
   };
+  // Touch and pen: a tap on a pin selects it and the selection stays after the finger lifts.
+  // Taps on open map and scroll gestures leave it alone.
+  let tapFrom: Point | null = null;
+  const onDown = (e: PointerEvent) => {
+    tapFrom = e.pointerType === "mouse" ? null : { x: e.clientX, y: e.clientY };
+  };
+  const onUp = (e: PointerEvent) => {
+    if (!tapFrom || Math.hypot(e.clientX - tapFrom.x, e.clientY - tapFrom.y) > 10) return;
+    tapFrom = null;
+    const box = canvas.getBoundingClientRect();
+    const id = pinAt(e.clientX - box.left, e.clientY - box.top);
+    if (id) options.onHover(id);
+  };
+  const onCancel = () => (tapFrom = null);
   canvas.addEventListener("pointermove", onMove);
-  canvas.addEventListener("pointerdown", onMove);
   canvas.addEventListener("pointerleave", onLeave);
+  canvas.addEventListener("pointerdown", onDown);
+  canvas.addEventListener("pointerup", onUp);
+  canvas.addEventListener("pointercancel", onCancel);
 
   let target = { cx: hq.x, cy: hq.y, k: 1, kMin: 1, sx: 0, sy: 0 };
   let scaleKm = 0;
@@ -483,8 +501,10 @@ export function createPlanMap(
       stop();
       stopResize();
       canvas.removeEventListener("pointermove", onMove);
-      canvas.removeEventListener("pointerdown", onMove);
       canvas.removeEventListener("pointerleave", onLeave);
+      canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointerup", onUp);
+      canvas.removeEventListener("pointercancel", onCancel);
     },
   };
 }

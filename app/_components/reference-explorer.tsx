@@ -20,6 +20,17 @@ const css = ([r, g, b]: RGB) => `rgb(${r} ${g} ${b})`;
 /** Gap between a pin and its tooltip card. */
 const TIP_GAP = 18;
 
+/** Index of the card resting at the rail's snap edge. */
+function cardAtEdge(rail: HTMLElement) {
+  const cards = [...rail.children] as HTMLElement[];
+  const edge = rail.scrollLeft + (cards[0]?.offsetLeft ?? 0);
+  let best = 0;
+  cards.forEach((card, i) => {
+    if (Math.abs(card.offsetLeft - edge) < Math.abs(cards[best].offsetLeft - edge)) best = i;
+  });
+  return best;
+}
+
 export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
   const [groupId, setGroupId] = useState(groups[0].id);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -33,6 +44,9 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
   const tooltipRef = useRef<HTMLDivElement>(null);
   const scaleBarRef = useRef<HTMLSpanElement>(null);
   const scaleLabelRef = useRef<HTMLSpanElement>(null);
+  const railRef = useRef<HTMLUListElement>(null);
+  // Set while the rail is scrolled from code, so the cards it passes on the way don't take over the map.
+  const steerRef = useRef<number | undefined>(undefined);
   const engineRef = useRef<PlanMap | null>(null);
 
   const group = groups.find((g) => g.id === groupId) ?? groups[0];
@@ -156,6 +170,33 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
     return () => window.removeEventListener("resize", place);
   }, [groupId]);
 
+  const steer = () => {
+    window.clearTimeout(steerRef.current);
+    steerRef.current = window.setTimeout(() => (steerRef.current = undefined), 150);
+  };
+
+  // Below lg the list is a swipeable rail, and the card resting at its edge drives the map...
+  const onRailScroll = () => {
+    const rail = railRef.current;
+    if (!rail) return;
+    if (steerRef.current !== undefined) {
+      steer();
+      return;
+    }
+    const item = group.items[cardAtEdge(rail)];
+    setActiveId(item?.coords ? item.id : null);
+  };
+
+  // ...and whatever else picks a reference (a pin, a tap on a peeking card) brings its card to that edge.
+  useEffect(() => {
+    const rail = railRef.current;
+    const index = group.items.findIndex((item) => item.id === activeId);
+    if (!rail || index < 0 || rail.scrollWidth <= rail.clientWidth || index === cardAtEdge(rail)) return;
+    const cards = rail.children as HTMLCollectionOf<HTMLElement>;
+    steer();
+    rail.scrollTo({ left: cards[index].offsetLeft - cards[0].offsetLeft, behavior: reduced ? "auto" : "smooth" });
+  }, [activeId, group, reduced]);
+
   const selectGroup = (id: string) => {
     setGroupId(id);
     setActiveId(null);
@@ -172,7 +213,7 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
   return (
     <div
       ref={stageRef}
-      className="plan-stage relative origin-[50%_100%] overflow-hidden rounded-sm border border-white/10 lg:h-[min(86svh,880px)] lg:min-h-[620px]"
+      className="plan-stage relative origin-[50%_100%] overflow-hidden rounded-sm border border-white/10 max-sm:-mx-5 max-sm:rounded-none max-sm:border-x-0 lg:h-[min(86svh,880px)] lg:min-h-[620px]"
       style={{ "--tone": css(toneOf(group.id)) } as CSSProperties}
     >
       <div className="relative p-3 lg:absolute lg:left-4 lg:top-4 lg:z-10 lg:p-0">
@@ -181,7 +222,7 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
           role="tablist"
           aria-label="Reference categories"
           onKeyDown={onTabKey}
-          className="no-scrollbar relative flex max-w-full overflow-x-auto rounded-full border border-white/12 bg-ink/70 p-1 backdrop-blur-xl lg:inline-flex"
+          className="no-scrollbar relative flex max-w-full overflow-x-auto rounded-full border border-white/12 bg-ink/70 p-1 backdrop-blur-xl sm:inline-flex"
         >
           <span ref={pillRef} aria-hidden="true" className="tab-pill absolute inset-y-1 left-0 rounded-full bg-(--tone)" />
           {groups.map((g) => {
@@ -196,11 +237,18 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
                 aria-controls="ref-panel"
                 tabIndex={selected ? 0 : -1}
                 onClick={() => selectGroup(g.id)}
-                className={`relative flex h-10 shrink-0 items-center gap-2.5 whitespace-nowrap rounded-full px-4 text-sm font-medium transition-colors duration-500 ${
+                className={`relative flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full px-3 text-sm font-medium transition-colors duration-500 max-sm:flex-auto sm:gap-2.5 sm:px-4 ${
                   selected ? "text-ink" : "text-white/65 hover:text-white"
                 }`}
               >
-                {g.label}
+                {g.short ? (
+                  <>
+                    <span className="sm:hidden">{g.short}</span>
+                    <span className="max-sm:hidden">{g.label}</span>
+                  </>
+                ) : (
+                  g.label
+                )}
                 <span
                   className={`font-mono text-xs transition-colors duration-500 ${selected ? "text-ink/60" : ""}`}
                   style={selected ? undefined : { color: css(toneOf(g.id)) }}
@@ -213,14 +261,17 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
         </div>
       </div>
 
-      <div className="relative aspect-[4/5] sm:aspect-[16/10] lg:absolute lg:inset-0 lg:aspect-auto">
+      {/* Below lg the map is capped so tabs, map and card rail fit one screen under the header.
+          w-full keeps the cap from carrying over to the width through the aspect ratio. */}
+      <div className="relative aspect-square max-h-[calc(100svh-26rem)] min-h-64 w-full sm:aspect-[16/10] lg:absolute lg:inset-0 lg:aspect-auto lg:max-h-none lg:min-h-0">
         <canvas ref={canvasRef} aria-hidden="true" className="absolute inset-0 h-full w-full" />
 
+        {/* Below lg the selected card already carries the details. */}
         {tip && (
           <div
             ref={tooltipRef}
             aria-hidden="true"
-            className="pointer-events-none absolute left-0 top-0 z-10 opacity-0 transition-opacity duration-300"
+            className="pointer-events-none absolute left-0 top-0 z-10 opacity-0 transition-opacity duration-300 max-lg:hidden"
           >
             <div
               key={tip.id}
@@ -262,17 +313,33 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
         <p key={group.id} className="ref-row text-sm leading-relaxed text-white/55">
           {group.intro}
         </p>
-        <ul key={`list-${group.id}`} className="mt-4" onMouseLeave={() => setActiveId(null)}>
+        <ul
+          key={`list-${group.id}`}
+          ref={railRef}
+          onScroll={onRailScroll}
+          onPointerLeave={(event) => {
+            if (event.pointerType === "mouse") setActiveId(null);
+          }}
+          className="no-scrollbar relative -mx-5 mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-5 scroll-px-5 lg:mx-0 lg:block lg:overflow-visible lg:px-0"
+        >
           {group.items.map((item, i) => {
             const isActive = item.id === activeId;
             return (
-              <li key={item.id} className="ref-row border-t border-white/10 last:border-b" style={{ "--d": 60 + i * 50 } as CSSProperties}>
+              <li
+                key={item.id}
+                className={`ref-row w-[min(20rem,82%)] shrink-0 snap-start rounded-sm border bg-white/[0.025] transition-colors duration-500 lg:w-auto lg:bg-transparent lg:rounded-none lg:border-x-0 lg:border-b-0 lg:border-white/10 lg:last:border-b ${
+                  isActive ? "border-(--tone)/45" : "border-white/10"
+                }`}
+                style={{ "--d": 60 + i * 50 } as CSSProperties}
+              >
                 <button
                   type="button"
-                  onPointerEnter={() => setActiveId(item.coords ? item.id : null)}
+                  onPointerEnter={(event) => {
+                    if (event.pointerType === "mouse") setActiveId(item.coords ? item.id : null);
+                  }}
                   onFocus={() => setActiveId(item.coords ? item.id : null)}
                   onClick={() => setActiveId(item.coords ? item.id : null)}
-                  className={`relative block w-full py-3.5 pl-4 pr-1 text-left outline-none transition-colors duration-300 focus-visible:bg-white/[0.05] ${
+                  className={`relative flex h-full w-full flex-col p-4 text-left outline-none transition-colors duration-300 focus-visible:bg-white/[0.05] lg:block lg:py-3.5 lg:pr-1 ${
                     isActive ? "bg-white/[0.04]" : ""
                   }`}
                 >
@@ -296,11 +363,7 @@ export function ReferenceExplorer({ groups }: { groups: ReferenceGroup[] }) {
                     {item.title}
                   </span>
                   {item.detail && (
-                    <span className={`ref-detail lg:hidden ${isActive ? "is-open" : ""}`}>
-                      <span className="overflow-hidden">
-                        <span className="block pt-1.5 text-sm leading-relaxed text-white/55">{item.detail}</span>
-                      </span>
-                    </span>
+                    <span className="mt-1.5 block text-sm leading-relaxed text-white/55 lg:hidden">{item.detail}</span>
                   )}
                 </button>
               </li>
